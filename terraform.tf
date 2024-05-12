@@ -17,7 +17,6 @@ provider "aws" {
   region                  = "us-east-1"
   shared_config_files      = ["C:\\Users\\rmural147\\.aws\\config"]
   shared_credentials_files = ["C:\\Users\\rmural147\\.aws\\credentials"]
-  profile                  = "saml"
 }
 
 resource "aws_vpc" "tenant0" {
