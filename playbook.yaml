@@ -1,0 +1,119 @@
+---
+- hosts: localhost
+  become: yes
+  vars:
+    nexus_user: nexus
+    nexus_password: "nexus"
+    nexus_version: "3.68.0-04"
+    nexus_download_url: https://download.sonatype.com/nexus/3/nexus-{{ nexus_version }}-unix.tar.gz
+  tasks:
+    - name: Update and upgrade system packages
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Install required packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - openjdk-8-jre-headless
+        - curl
+        - tar
+        - wget
+
+    - name: Create Nexus user
+      user:
+        name: "{{ nexus_user }}"
+        home: /opt/nexus
+        shell: /bin/bash
+
+    - name: Set ulimit for Nexus user
+      pam_limits:
+        domain: "{{ nexus_user }}"
+        limit_type: soft
+        limit_item: nofile
+        value: 65536
+
+    - name: Download Nexus
+      get_url:
+        url: "{{ nexus_download_url }}"
+        dest: "/tmp/nexus-{{ nexus_version }}-unix.tar.gz"
+
+    - name: Extract Nexus tarball
+      unarchive:
+        src: "/tmp/nexus-{{ nexus_version }}-unix.tar.gz"
+        dest: /opt
+        remote_src: yes
+
+    - name: Change owner of Nexus directories
+      file:
+        path: "{{ item }}"
+        owner: "{{ nexus_user }}"
+        group: "{{ nexus_user }}"
+        recurse: yes
+      loop:
+        - /opt/nexus-{{ nexus_version }}
+        - /opt/sonatype-work
+
+    - name: Set run_as_user in nexus.rc
+      lineinfile:
+        path: /opt/nexus-{{ nexus_version }}/bin/nexus.rc
+        line: 'run_as_user="{{ nexus_user }}"'
+...
+
+    - name: Create Nexus service
+      copy:
+        dest: /etc/systemd/system/nexus.service
+        content: |
+          [Unit]
+          Description=nexus service
+          After=network.target
+
+          [Service]
+          Type=forking
+          LimitNOFILE=65536
+          ExecStart=/opt/nexus-{{ nexus_version }}/bin/nexus start
+          ExecStop=/opt/nexus-{{ nexus_version }}/bin/nexus stop
+          User=nexus
+          Restart=on-abort
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Start and enable Nexus service
+      systemd:
+        name: nexus
+        state: started
+        enabled: yes
+
+    - name: Wait for Nexus to start
+      wait_for:
+        host: localhost
+        port: 8081
+        delay: 10
+        timeout: 120
+
+    - name: Create Docker repository
+      uri:
+        url: "http://localhost:8081/service/rest/v1/repositories/docker/hosted"
+        method: POST
+        user: "{{ nexus_user }}"
+        password: "{{ nexus_password }}"
+        body_format: json
+        body: {"name": "docker-repo", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
+
+    - name: Create Raw repository
+      uri:
+        url: "http://localhost:8081/service/rest/v1/repositories/raw/hosted"
+        method: POST
+        user: "{{ nexus_user }}"
+        password: "{{ nexus_password }}"
+        body_format: json
+        body: {"name": "raw-repo", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
+    
+...
