@@ -60,7 +60,6 @@
       lineinfile:
         path: /opt/nexus-{{ nexus_version }}/bin/nexus.rc
         line: 'run_as_user="{{ nexus_user }}"'
-...
 
     - name: Create Nexus service
       copy:
@@ -105,7 +104,7 @@
         user: "{{ nexus_user }}"
         password: "{{ nexus_password }}"
         body_format: json
-        body: {"name": "docker-repo", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
+        body: {"name": "docker-repository", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
 
     - name: Create Raw repository
       uri:
@@ -114,6 +113,6 @@
         user: "{{ nexus_user }}"
         password: "{{ nexus_password }}"
         body_format: json
-        body: {"name": "raw-repo", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
+        body: {"name": "raw-repository", "online": true, "storage": {"blobStoreName": "default", "strictContentTypeValidation": true}}
     
 ...
